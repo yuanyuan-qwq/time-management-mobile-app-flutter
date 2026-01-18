@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:drift/drift.dart' as drift;
+import 'package:audioplayers/audioplayers.dart';
 import '../data/database.dart';
 import '../theme/app_theme.dart';
 import 'today_tasks_screen.dart' show database;
@@ -25,8 +26,13 @@ class _PomodoroScreenState extends State<PomodoroScreen>
   Timer? _timer;
   _TimerMode _timerMode = _TimerMode.focus;
 
-  // Selected task
-  Task? _selectedTask;
+  // Sound player
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  // Selected task (by ID to handle updates)
+  int? _selectedTaskId;
+  Task? _cachedTask; // For display purposes
+
   int _sessionTimeSpent = 0;
 
   @override
@@ -48,6 +54,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
   @override
   void dispose() {
     _timer?.cancel();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -93,16 +100,32 @@ class _PomodoroScreenState extends State<PomodoroScreen>
     }
   }
 
+  void _playSound() async {
+    try {
+      // Plays a default system sound or asset if available.
+      // Since we don't know if the user added assets, we can try to play a source,
+      // or just leave a placeholder logic.
+      // Assuming user might add 'assets/sounds/ding.mp3', otherwise this might fail silently or log error.
+      // For now, let's try to play a reliable source or catch error.
+      // We will assume the user has configured assets in pubspec.yaml as requested.
+      await _audioPlayer.play(AssetSource('sounds/ding.mp3'));
+    } catch (e) {
+      debugPrint('Error playing sound: $e');
+    }
+  }
+
   void _onTimerComplete() async {
+    _playSound();
+
     // Save session if focus mode
-    if (_timerMode == _TimerMode.focus && _selectedTask != null) {
+    if (_timerMode == _TimerMode.focus && _selectedTaskId != null) {
       await database.insertPomodoroSession(
         PomodoroSessionsCompanion(
-          taskId: drift.Value(_selectedTask!.id),
+          taskId: drift.Value(_selectedTaskId!),
           durationSeconds: drift.Value(_sessionTimeSpent),
         ),
       );
-      await database.addTimeToTask(_selectedTask!.id, _sessionTimeSpent);
+      await database.addTimeToTask(_selectedTaskId!, _sessionTimeSpent);
       _sessionTimeSpent = 0;
     }
 
@@ -146,32 +169,28 @@ class _PomodoroScreenState extends State<PomodoroScreen>
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Timer Settings'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildSliderTile(
-              'Focus Time',
-              tempPomodoro,
-              5,
-              60,
-              (v) => tempPomodoro = v.round(),
-            ),
-            _buildSliderTile(
-              'Short Break',
-              tempShortBreak,
-              1,
-              30,
-              (v) => tempShortBreak = v.round(),
-            ),
-            _buildSliderTile(
-              'Long Break',
-              tempLongBreak,
-              5,
-              45,
-              (v) => tempLongBreak = v.round(),
-            ),
-          ],
+        title: const Text('Timer Settings (Max 120m)'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _SettingTile(
+                label: 'Focus Time',
+                value: tempPomodoro,
+                onChanged: (v) => tempPomodoro = v,
+              ),
+              _SettingTile(
+                label: 'Short Break',
+                value: tempShortBreak,
+                onChanged: (v) => tempShortBreak = v,
+              ),
+              _SettingTile(
+                label: 'Long Break',
+                value: tempLongBreak,
+                onChanged: (v) => tempLongBreak = v,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -202,55 +221,18 @@ class _PomodoroScreenState extends State<PomodoroScreen>
     );
   }
 
-  Widget _buildSliderTile(
-    String label,
-    int value,
-    int min,
-    int max,
-    Function(double) onChanged,
-  ) {
-    return StatefulBuilder(
-      builder: (context, setSliderState) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label),
-              Text(
-                '$value min',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          Slider(
-            value: value.toDouble(),
-            min: min.toDouble(),
-            max: max.toDouble(),
-            divisions: max - min,
-            onChanged: (v) {
-              setSliderState(() {
-                onChanged(v);
-                value = v.round();
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _markTaskComplete() async {
-    if (_selectedTask == null) return;
+    if (_selectedTaskId == null) return;
 
-    await database.markTaskComplete(_selectedTask!);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('"${_selectedTask!.title}" marked as complete!'),
-        ),
-      );
-      setState(() => _selectedTask = null);
+    final task = _cachedTask;
+    if (task != null) {
+      await database.markTaskComplete(task);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"${task.title}" marked as complete!')),
+        );
+        setState(() => _selectedTaskId = null);
+      }
     }
   }
 
@@ -376,17 +358,18 @@ class _PomodoroScreenState extends State<PomodoroScreen>
 
                     // Find current task by ID if it exists
                     Task? currentSelectedTask;
-                    if (_selectedTask != null) {
+                    if (_selectedTaskId != null) {
                       final matchingTasks = tasks.where(
-                        (t) => t.id == _selectedTask!.id,
+                        (t) => t.id == _selectedTaskId,
                       );
                       if (matchingTasks.isNotEmpty) {
                         currentSelectedTask = matchingTasks.first;
+                        _cachedTask = currentSelectedTask;
                       } else {
-                        // Task no longer available, clear selection
+                        // Task no longer available
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) {
-                            setState(() => _selectedTask = null);
+                          if (mounted && _selectedTaskId != null) {
+                            setState(() => _selectedTaskId = null);
                           }
                         });
                       }
@@ -416,17 +399,10 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                             ),
                           ],
                           onChanged: (taskId) {
-                            if (taskId == null) {
-                              setState(() => _selectedTask = null);
-                            } else {
-                              final task = tasks.firstWhere(
-                                (t) => t.id == taskId,
-                              );
-                              setState(() => _selectedTask = task);
-                            }
+                            setState(() => _selectedTaskId = taskId);
                           },
                         ),
-                        if (_selectedTask != null) ...[
+                        if (_selectedTaskId != null) ...[
                           const SizedBox(height: 12),
                           OutlinedButton.icon(
                             onPressed: _markTaskComplete,
@@ -476,20 +452,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 24),
-
-                  // Skip button
-                  IconButton.filled(
-                    onPressed: () {
-                      _timer?.cancel();
-                      _onTimerComplete();
-                    },
-                    icon: const Icon(Icons.skip_next),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.grey.shade200,
-                      foregroundColor: Colors.grey.shade700,
-                    ),
-                  ),
+                  // Skip button removed as requested
                 ],
               ),
             ),
@@ -497,6 +460,105 @@ class _PomodoroScreenState extends State<PomodoroScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SettingTile extends StatefulWidget {
+  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  const _SettingTile({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  State<_SettingTile> createState() => _SettingTileState();
+}
+
+class _SettingTileState extends State<_SettingTile> {
+  late int _currentValue;
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentValue = widget.value;
+    _controller = TextEditingController(text: widget.value.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleSliderChange(double value) {
+    final intValue = value.round();
+    setState(() {
+      _currentValue = intValue;
+      _controller.text = intValue.toString();
+    });
+    widget.onChanged(intValue);
+  }
+
+  void _handleTextChange(String value) {
+    final parsed = int.tryParse(value);
+    if (parsed != null) {
+      final clamped = parsed.clamp(1, 120);
+      setState(() {
+        _currentValue = clamped;
+      });
+      widget.onChanged(clamped);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(widget.label),
+            SizedBox(
+              width: 60,
+              child: Focus(
+                onFocusChange: (hasFocus) {
+                  if (!hasFocus) {
+                    // Reset text to strict value on blur to ensure consistency
+                    _controller.text = _currentValue.toString();
+                  }
+                },
+                child: TextField(
+                  controller: _controller,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 8,
+                    ),
+                    suffixText: 'm',
+                  ),
+                  onChanged: _handleTextChange,
+                ),
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: _currentValue.toDouble(),
+          min: 1,
+          max: 120,
+          onChanged: _handleSliderChange,
+        ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 }

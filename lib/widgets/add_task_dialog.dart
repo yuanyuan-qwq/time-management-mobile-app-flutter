@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:drift/drift.dart' as drift;
 import '../data/database.dart';
 import '../models/priority.dart';
+import '../screens/today_tasks_screen.dart' show database;
 
 /// Dialog for adding or editing tasks
 class AddTaskDialog extends StatefulWidget {
@@ -116,6 +117,42 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       widget.onSave(companion);
       Navigator.pop(context);
     }
+  }
+
+  Future<void> _showAddCategoryDialog() async {
+    final controller = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('New Category'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Category Name',
+            hintText: 'e.g., Work, Personal',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = controller.text.trim();
+              if (name.isNotEmpty) {
+                await database.insertCategory(
+                  CategoriesCompanion(name: drift.Value(name)),
+                );
+                if (context.mounted) Navigator.pop(context);
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -256,6 +293,62 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 selected: {_priority},
                 onSelectionChanged: (set) {
                   setState(() => _priority = set.first);
+                },
+              ),
+              const SizedBox(height: 24),
+
+              // Categories
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Category',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextButton.icon(
+                    onPressed: _showAddCategoryDialog,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('New'),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(60, 30),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              StreamBuilder<List<Category>>(
+                stream: database.watchAllCategories(),
+                builder: (context, snapshot) {
+                  final categories = snapshot.data ?? [];
+                  if (categories.isEmpty) {
+                    return const Text(
+                      'No categories. Create one!',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    );
+                  }
+                  return Wrap(
+                    spacing: 8,
+                    children: categories.map((c) {
+                      final isSelected = _selectedCategoryId == c.id;
+                      return ChoiceChip(
+                        label: Text(c.name),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            _selectedCategoryId = selected ? c.id : null;
+                          });
+                        },
+                        avatar: isSelected
+                            ? const Icon(Icons.check, size: 16)
+                            : null,
+                      );
+                    }).toList(),
+                  );
                 },
               ),
               const SizedBox(height: 24),

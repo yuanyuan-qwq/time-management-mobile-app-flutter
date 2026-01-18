@@ -12,6 +12,20 @@ class ReportScreen extends StatefulWidget {
 }
 
 class _ReportScreenState extends State<ReportScreen> {
+  DateTimeRange? _selectedDateRange;
+
+  Future<void> _selectDateRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDateRange: _selectedDateRange,
+    );
+    if (picked != null) {
+      setState(() => _selectedDateRange = picked);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -26,6 +40,24 @@ class _ReportScreenState extends State<ReportScreen> {
             final completed = allTasks.where((t) => t.isCompleted).length;
             final incomplete = allTasks.where((t) => !t.isCompleted).length;
             final total = completed + incomplete;
+
+            // Range stats
+            List<Task> rangeTasks = [];
+            if (_selectedDateRange != null) {
+              rangeTasks = allTasks.where((t) {
+                // Determine if task falls in range (by due date or completed date?)
+                // Usually due date or created date. Let's use Due Date.
+                final date = t.dueDate;
+                return date.isAfter(
+                      _selectedDateRange!.start.subtract(
+                        const Duration(seconds: 1),
+                      ),
+                    ) &&
+                    date.isBefore(
+                      _selectedDateRange!.end.add(const Duration(days: 1)),
+                    );
+              }).toList();
+            }
 
             // Calculate weekly data
             final now = DateTime.now();
@@ -59,13 +91,101 @@ class _ReportScreenState extends State<ReportScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header
-                      Text(
-                        'Statistics',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                      // Header with Date Range Picker button
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Statistics',
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _selectDateRange,
+                            icon: const Icon(Icons.date_range),
+                            label: Text(
+                              _selectedDateRange == null ? 'All Time' : 'Range',
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 24),
+
+                      // Range Stats (if selected)
+                      if (_selectedDateRange != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppTheme.primaryColor.withValues(
+                                alpha: 0.3,
+                              ),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Selected Range',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.primaryColor,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.close, size: 16),
+                                    onPressed: () => setState(
+                                      () => _selectedDateRange = null,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '${_selectedDateRange!.start.day}/${_selectedDateRange!.start.month} - ${_selectedDateRange!.end.day}/${_selectedDateRange!.end.month}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _MiniStat(
+                                      label: 'Total',
+                                      value: rangeTasks.length.toString(),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _MiniStat(
+                                      label: 'Done',
+                                      value: rangeTasks
+                                          .where((t) => t.isCompleted)
+                                          .length
+                                          .toString(),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _MiniStat(
+                                      label: 'Rate',
+                                      value: rangeTasks.isEmpty
+                                          ? '0%'
+                                          : '${((rangeTasks.where((t) => t.isCompleted).length / rangeTasks.length) * 100).round()}%',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
 
                       // Summary cards
                       Column(
@@ -403,6 +523,29 @@ class _LegendItem extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(label),
+      ],
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MiniStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
       ],
     );
   }
