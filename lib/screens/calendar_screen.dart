@@ -18,7 +18,6 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime _selectedDay = DateTime.now();
 
@@ -75,7 +74,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   firstDay: DateTime.now().subtract(const Duration(days: 365)),
                   lastDay: DateTime.now().add(const Duration(days: 365 * 5)),
                   focusedDay: _focusedDay,
-                  calendarFormat: _calendarFormat,
+                  calendarFormat: CalendarFormat.month,
+                  availableCalendarFormats: const {
+                    CalendarFormat.month: 'Month',
+                  },
                   selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                   onDaySelected: (selectedDay, focusedDay) {
                     setState(() {
@@ -83,9 +85,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       _focusedDay = focusedDay;
                     });
                   },
-                  onFormatChanged: (format) {
-                    setState(() => _calendarFormat = format);
-                  },
+
                   onPageChanged: (focusedDay) {
                     _focusedDay = focusedDay;
                   },
@@ -137,7 +137,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ),
                   ),
                   headerStyle: const HeaderStyle(
-                    formatButtonVisible: true,
+                    formatButtonVisible: false,
                     titleCentered: true,
                   ),
                 );

@@ -374,22 +374,40 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                         .where((t) => !t.isCompleted)
                         .toList();
 
+                    // Find current task by ID if it exists
+                    Task? currentSelectedTask;
+                    if (_selectedTask != null) {
+                      final matchingTasks = tasks.where(
+                        (t) => t.id == _selectedTask!.id,
+                      );
+                      if (matchingTasks.isNotEmpty) {
+                        currentSelectedTask = matchingTasks.first;
+                      } else {
+                        // Task no longer available, clear selection
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) {
+                            setState(() => _selectedTask = null);
+                          }
+                        });
+                      }
+                    }
+
                     return Column(
                       children: [
-                        DropdownButtonFormField<Task?>(
-                          value: _selectedTask,
+                        DropdownButtonFormField<int?>(
+                          value: currentSelectedTask?.id,
                           decoration: const InputDecoration(
                             labelText: 'Select task to focus on',
                             prefixIcon: Icon(Icons.task_alt),
                           ),
                           items: [
-                            const DropdownMenuItem(
+                            const DropdownMenuItem<int?>(
                               value: null,
                               child: Text('No task selected'),
                             ),
                             ...tasks.map(
-                              (t) => DropdownMenuItem(
-                                value: t,
+                              (t) => DropdownMenuItem<int?>(
+                                value: t.id,
                                 child: Text(
                                   t.title,
                                   overflow: TextOverflow.ellipsis,
@@ -397,8 +415,15 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                               ),
                             ),
                           ],
-                          onChanged: (task) {
-                            setState(() => _selectedTask = task);
+                          onChanged: (taskId) {
+                            if (taskId == null) {
+                              setState(() => _selectedTask = null);
+                            } else {
+                              final task = tasks.firstWhere(
+                                (t) => t.id == taskId,
+                              );
+                              setState(() => _selectedTask = task);
+                            }
                           },
                         ),
                         if (_selectedTask != null) ...[
