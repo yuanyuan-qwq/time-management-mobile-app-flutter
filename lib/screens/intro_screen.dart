@@ -32,7 +32,7 @@ class _IntroScreenState extends State<IntroScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
   late String _quote;
-  int _secondsRemaining = 15;
+  int _secondsRemaining = 5;
   Timer? _timer;
 
   @override
@@ -166,7 +166,7 @@ class _IntroScreenState extends State<IntroScreen>
 
                         // App name
                         const Text(
-                          'TimeOptimize',
+                          'Frocus',
                           style: TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
