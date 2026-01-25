@@ -253,7 +253,24 @@ _TimerMode? _runningMode;
                 _pomodoroMinutes = tempPomodoro;
                 _shortBreakMinutes = tempShortBreak;
                 _longBreakMinutes = tempLongBreak;
-                _currentSeconds = _getModeDuration() * 60;
+
+                  // Update remaining seconds for ALL modes
+                _remainingSeconds[_TimerMode.focus] = _pomodoroMinutes * 60;
+                _remainingSeconds[_TimerMode.shortBreak] = _shortBreakMinutes * 60;
+                _remainingSeconds[_TimerMode.longBreak] = _longBreakMinutes * 60;
+                
+                // Clear running timer
+                _timer?.cancel();
+                _runningMode = null;
+                _isRunning = false;
+
+                // Reset current mode display
+                _currentSeconds = _remainingSeconds[_timerMode]!;
+
+                // Clear end times
+                _endTimes[_TimerMode.focus] = null;
+                _endTimes[_TimerMode.shortBreak] = null;
+                _endTimes[_TimerMode.longBreak] = null;
               });
               if (context.mounted) Navigator.pop(context);
             },
