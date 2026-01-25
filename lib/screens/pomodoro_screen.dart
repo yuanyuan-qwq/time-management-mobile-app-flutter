@@ -188,15 +188,30 @@ _TimerMode? _runningMode;
     }
   }
 
-  void _switchMode(_TimerMode mode) {
+void _switchMode(_TimerMode mode) {
+  final endTime = _endTimes[mode];
+
+  if (_runningMode == mode && endTime != null) {
+    // Mode is actively running → calculate real remaining time immediately
+    final remaining =
+        (endTime.difference(DateTime.now()).inMilliseconds / 1000).ceil();
+
+    setState(() {
+      _timerMode = mode;
+      _currentSeconds = remaining.clamp(0, 999999);
+      _remainingSeconds[mode] = _currentSeconds;
+      _isRunning = true;
+    });
+  } else {
+    // Not running → normal behavior
     setState(() {
       _timerMode = mode;
       _currentSeconds = _remainingSeconds[mode]!;
-
-      // Update play/pause button state correctly
-      _isRunning = (_runningMode == mode);
+      _isRunning = false;
     });
   }
+}
+
 
   String _formatTime(int totalSeconds) {
     final minutes = totalSeconds ~/ 60;
