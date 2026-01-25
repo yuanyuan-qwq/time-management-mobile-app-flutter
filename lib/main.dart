@@ -48,8 +48,7 @@ class _MyAppState extends State<MyApp> {
     if (_isLoading) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
+        theme: AppTheme.darkTheme,
         home: const Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
@@ -57,8 +56,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'TimeOptimize',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
       home: _showIntro
           ? IntroScreen(onComplete: _onIntroComplete)
