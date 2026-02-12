@@ -33,6 +33,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   late DateTime _dueDate;
   bool _isRepeating = false;
   DateTime? _repeatEndDate;
+  bool _isReminderActive = false;
 
   // New Repetition State
   RepeatType _repeatType = RepeatType.daily;
@@ -65,6 +66,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     _dueDate = task?.dueDate ?? widget.initialDate ?? DateTime.now();
     _isRepeating = task?.isRepeating ?? false;
     _repeatEndDate = task?.repeatEndDate;
+    _isReminderActive = task?.isReminderActive ?? false;
     // Default repetition values
     if (_dueDate.weekday != 0) _selectedWeekDays.add(_dueDate.weekday);
     if (_dueDate.day != 0) _selectedMonthDays.add(_dueDate.day);
@@ -193,6 +195,10 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       }
 
       widget.onSave(tasksToSave);
+
+      // Handle notification scheduling
+      // Scheduling is delegated to the caller or DB layer for simplicity
+
       Navigator.pop(context);
     }
   }
@@ -213,6 +219,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
           ? drift.Value(_repeatEndDate)
           : const drift.Value(null),
       repeatId: drift.Value(repeatId),
+      isReminderActive: drift.Value(_isReminderActive),
     );
   }
 
@@ -369,6 +376,19 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: _selectDate,
+              ),
+              const Divider(),
+
+              // Reminder Toggle
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: const Icon(Icons.notifications_active),
+                title: const Text('Set Reminder'),
+                subtitle: const Text('Notify me at due time'),
+                value: _isReminderActive,
+                onChanged: (value) {
+                  setState(() => _isReminderActive = value);
+                },
               ),
               const Divider(),
 

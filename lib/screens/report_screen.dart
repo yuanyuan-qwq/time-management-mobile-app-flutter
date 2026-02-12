@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../data/database.dart';
 import '../theme/app_theme.dart';
+import '../theme/theme_notifier.dart';
 import 'today_tasks_screen.dart' show database;
 
 enum DateFilter { today, thisWeek, allTime, custom }
@@ -132,6 +133,78 @@ class _ReportScreenState extends State<ReportScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Settings Section
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Settings',
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Appearance',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            ValueListenableBuilder<ThemeMode>(
+                              valueListenable: ThemeNotifier(),
+                              builder: (context, currentMode, _) {
+                                return SegmentedButton<ThemeMode>(
+                                  segments: const [
+                                    ButtonSegment(
+                                      value: ThemeMode.system,
+                                      label: Text('System'),
+                                      icon: Icon(Icons.brightness_auto),
+                                    ),
+                                    ButtonSegment(
+                                      value: ThemeMode.light,
+                                      label: Text('Light'),
+                                      icon: Icon(Icons.light_mode),
+                                    ),
+                                    ButtonSegment(
+                                      value: ThemeMode.dark,
+                                      label: Text('Dark'),
+                                      icon: Icon(Icons.dark_mode),
+                                    ),
+                                  ],
+                                  selected: {currentMode},
+                                  onSelectionChanged:
+                                      (Set<ThemeMode> newSelection) {
+                                        ThemeNotifier().setTheme(
+                                          newSelection.first,
+                                        );
+                                      },
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
                       // Header & Filter
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,

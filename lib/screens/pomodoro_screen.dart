@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' as drift;
 import 'package:audioplayers/audioplayers.dart';
 import '../data/database.dart';
 import '../theme/app_theme.dart';
+import '../services/notification_service.dart';
 import 'today_tasks_screen.dart' show database;
 
 class PomodoroScreen extends StatefulWidget {
@@ -36,18 +37,18 @@ class _PomodoroScreenState extends State<PomodoroScreen>
   int _sessionTimeSpent = 0;
 
   final Map<_TimerMode, int> _remainingSeconds = {
-  _TimerMode.focus: 25 * 60,
-  _TimerMode.shortBreak: 5 * 60,
-  _TimerMode.longBreak: 15 * 60,
-};
+    _TimerMode.focus: 25 * 60,
+    _TimerMode.shortBreak: 5 * 60,
+    _TimerMode.longBreak: 15 * 60,
+  };
 
-final Map<_TimerMode, DateTime?> _endTimes = {
-  _TimerMode.focus: null,
-  _TimerMode.shortBreak: null,
-  _TimerMode.longBreak: null,
-};
+  final Map<_TimerMode, DateTime?> _endTimes = {
+    _TimerMode.focus: null,
+    _TimerMode.shortBreak: null,
+    _TimerMode.longBreak: null,
+  };
 
-_TimerMode? _runningMode;
+  _TimerMode? _runningMode;
 
   @override
   void initState() {
@@ -62,7 +63,7 @@ _TimerMode? _runningMode;
       _pomodoroMinutes = settings.pomodoroMinutes;
       _shortBreakMinutes = settings.shortBreakMinutes;
       _longBreakMinutes = settings.longBreakMinutes;
-      
+
       _remainingSeconds[_TimerMode.focus] = _pomodoroMinutes * 60;
       _remainingSeconds[_TimerMode.shortBreak] = _shortBreakMinutes * 60;
       _remainingSeconds[_TimerMode.longBreak] = _longBreakMinutes * 60;
@@ -87,13 +88,16 @@ _TimerMode? _runningMode;
 
     _runningMode = _timerMode;
     _isRunning = true;
-    _endTimes[_timerMode] = DateTime.now().add(Duration(seconds: _remainingSeconds[_timerMode]!));
-   
+    _endTimes[_timerMode] = DateTime.now().add(
+      Duration(seconds: _remainingSeconds[_timerMode]!),
+    );
+
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       final endTime = _endTimes[_timerMode];
       if (endTime == null) return;
 
-      final remaining = (endTime.difference(DateTime.now()).inMilliseconds / 1000).ceil();
+      final remaining =
+          (endTime.difference(DateTime.now()).inMilliseconds / 1000).ceil();
 
       if (remaining > 0) {
         setState(() {
@@ -174,6 +178,13 @@ _TimerMode? _runningMode;
     setState(() => _isRunning = false);
 
     // Show notification
+    await NotificationService().showPomodoroComplete(
+      _timerMode == _TimerMode.focus
+          ? 'Focus session complete!'
+          : 'Break is over!',
+      _timerMode == _TimerMode.focus ? 'Take a break.' : 'Ready to focus?',
+    );
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -188,30 +199,29 @@ _TimerMode? _runningMode;
     }
   }
 
-void _switchMode(_TimerMode mode) {
-  final endTime = _endTimes[mode];
+  void _switchMode(_TimerMode mode) {
+    final endTime = _endTimes[mode];
 
-  if (_runningMode == mode && endTime != null) {
-    // Mode is actively running → calculate real remaining time immediately
-    final remaining =
-        (endTime.difference(DateTime.now()).inMilliseconds / 1000).ceil();
+    if (_runningMode == mode && endTime != null) {
+      // Mode is actively running → calculate real remaining time immediately
+      final remaining =
+          (endTime.difference(DateTime.now()).inMilliseconds / 1000).ceil();
 
-    setState(() {
-      _timerMode = mode;
-      _currentSeconds = remaining.clamp(0, 999999);
-      _remainingSeconds[mode] = _currentSeconds;
-      _isRunning = true;
-    });
-  } else {
-    // Not running → normal behavior
-    setState(() {
-      _timerMode = mode;
-      _currentSeconds = _remainingSeconds[mode]!;
-      _isRunning = false;
-    });
+      setState(() {
+        _timerMode = mode;
+        _currentSeconds = remaining.clamp(0, 999999);
+        _remainingSeconds[mode] = _currentSeconds;
+        _isRunning = true;
+      });
+    } else {
+      // Not running → normal behavior
+      setState(() {
+        _timerMode = mode;
+        _currentSeconds = _remainingSeconds[mode]!;
+        _isRunning = false;
+      });
+    }
   }
-}
-
 
   String _formatTime(int totalSeconds) {
     final minutes = totalSeconds ~/ 60;
@@ -269,11 +279,13 @@ void _switchMode(_TimerMode mode) {
                 _shortBreakMinutes = tempShortBreak;
                 _longBreakMinutes = tempLongBreak;
 
-                  // Update remaining seconds for ALL modes
+                // Update remaining seconds for ALL modes
                 _remainingSeconds[_TimerMode.focus] = _pomodoroMinutes * 60;
-                _remainingSeconds[_TimerMode.shortBreak] = _shortBreakMinutes * 60;
-                _remainingSeconds[_TimerMode.longBreak] = _longBreakMinutes * 60;
-                
+                _remainingSeconds[_TimerMode.shortBreak] =
+                    _shortBreakMinutes * 60;
+                _remainingSeconds[_TimerMode.longBreak] =
+                    _longBreakMinutes * 60;
+
                 // Clear running timer
                 _timer?.cancel();
                 _runningMode = null;
@@ -319,8 +331,9 @@ void _switchMode(_TimerMode mode) {
     if (endTime == null) return;
 
     if (state == AppLifecycleState.resumed) {
-      final remaining = (endTime.difference(DateTime.now()).inMilliseconds / 1000).ceil();
-      
+      final remaining =
+          (endTime.difference(DateTime.now()).inMilliseconds / 1000).ceil();
+
       if (remaining <= 0) {
         _timer?.cancel();
         _remainingSeconds[_timerMode] = 0;

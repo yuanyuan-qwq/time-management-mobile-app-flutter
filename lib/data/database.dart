@@ -29,6 +29,8 @@ class Tasks extends Table {
   IntColumn get timeSpentSeconds => integer().withDefault(const Constant(0))();
   BoolColumn get isRepeating => boolean().withDefault(const Constant(false))();
   DateTimeColumn get repeatEndDate => dateTime().nullable()();
+  BoolColumn get isReminderActive =>
+      boolean().withDefault(const Constant(false))();
   TextColumn get repeatId => text().nullable()();
   IntColumn get categoryId =>
       integer().nullable().references(Categories, #id)();
@@ -53,6 +55,9 @@ class AppSettings extends Table {
   IntColumn get longBreakMinutes => integer().withDefault(const Constant(15))();
   BoolColumn get hasSeenIntro => boolean().withDefault(const Constant(false))();
 
+  // 0: System, 1: Light, 2: Dark
+  IntColumn get themeMode => integer().withDefault(const Constant(0))();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -62,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration {
@@ -74,6 +79,14 @@ class AppDatabase extends _$AppDatabase {
         if (from < 3) {
           // We added the repeatId column in v3
           await m.addColumn(tasks, tasks.repeatId);
+        }
+        if (from < 4) {
+          // We added the themeMode column in v4
+          await m.addColumn(appSettings, appSettings.themeMode);
+        }
+        if (from < 5) {
+          // We added isReminderActive in v5
+          await m.addColumn(tasks, tasks.isReminderActive);
         }
       },
     );

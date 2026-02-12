@@ -4,6 +4,7 @@ import '../data/database.dart';
 import '../theme/app_theme.dart';
 import '../widgets/add_task_dialog.dart';
 import '../widgets/task_card.dart';
+import '../services/notification_service.dart';
 
 // Global database instance
 final database = AppDatabase();
@@ -23,11 +24,20 @@ class _TodayTasksScreenState extends State<TodayTasksScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => AddTaskDialog(
         onSave: (tasks) async {
-          await database.batch((batch) {
-            for (var task in tasks) {
-              batch.insert(database.tasks, task);
+          // Insert tasks and schedule notifications
+          for (var taskCompanion in tasks) {
+            final id = await database.insertTask(taskCompanion);
+
+            // We need to fetch the full task to schedule simple notification or use data we have
+            // Fetching is safer to ensure we have valid Task object
+            final task = await (database.select(
+              database.tasks,
+            )..where((t) => t.id.equals(id))).getSingle();
+
+            if (task.isReminderActive) {
+              await NotificationService().scheduleTaskReminder(task);
             }
-          });
+          }
         },
       ),
     );
@@ -38,8 +48,14 @@ class _TodayTasksScreenState extends State<TodayTasksScreen> {
       await database.updateTask(
         task.copyWith(isCompleted: false, completedAt: const drift.Value(null)),
       );
+      // Reschedule if active
+      if (task.isReminderActive) {
+        await NotificationService().scheduleTaskReminder(task);
+      }
     } else {
       await database.markTaskComplete(task);
+      // Cancel reminder
+      await NotificationService().cancelTaskReminder(task.id);
     }
   }
 
@@ -82,6 +98,18 @@ class _TodayTasksScreenState extends State<TodayTasksScreen> {
     if (confirmDelete) {
       if (deleteFuture && task.repeatId != null) {
         // Delete this task and all future tasks with same repeatId
+        final tasksToDelete =
+            await (database.select(database.tasks)..where(
+                  (t) =>
+                      t.repeatId.equals(task.repeatId!) &
+                      t.dueDate.isBiggerOrEqualValue(task.dueDate),
+                ))
+                .get();
+
+        for (var t in tasksToDelete) {
+          await NotificationService().cancelTaskReminder(t.id);
+        }
+
         await (database.delete(database.tasks)..where(
               (t) =>
                   t.repeatId.equals(task.repeatId!) &
@@ -89,6 +117,7 @@ class _TodayTasksScreenState extends State<TodayTasksScreen> {
             ))
             .go();
       } else {
+        await NotificationService().cancelTaskReminder(task.id);
         await database.deleteTask(task);
       }
 
@@ -227,7 +256,7 @@ class _TodayTasksScreenState extends State<TodayTasksScreen> {
                         _buildSectionHeader(
                           'To Do',
                           todoTasks.length,
-                          AppTheme.primaryColor,
+                          Theme.of(context).colorScheme.primary,
                         ),
                         const SizedBox(height: 8),
                         ...todoTasks.map(
@@ -348,6 +377,18 @@ class _TodayTasksScreenState extends State<TodayTasksScreen> {
                 repeatId: drift.Value(null), // Detach if single update
               ),
             );
+
+            // Reschedule notification
+            // We need to fetch the updated task to be sure or just construct a temporary one
+            // Fetching is safer.
+            final updatedTask = await (database.select(
+              database.tasks,
+            )..where((t) => t.id.equals(task.id))).getSingle();
+
+            await NotificationService().cancelTaskReminder(task.id);
+            if (updatedTask.isReminderActive) {
+              await NotificationService().scheduleTaskReminder(updatedTask);
+            }
           } else {
             // Multi-task insert implies rewrite/new series.
             // Delete the OLD task (this instance).
@@ -359,6 +400,23 @@ class _TodayTasksScreenState extends State<TodayTasksScreen> {
                 batch.insert(database.tasks, c);
               }
             });
+
+            // Reschedule mechanism for batch insert is tricky without IDs.
+            // For now, we accept that re-created repeating tasks might missing notifications
+            // UNLESS we query them by repeatId.
+            // Let's query them by repeatId (if available) and schedule.
+            if (companions.isNotEmpty &&
+                companions.first.repeatId.value != null) {
+              final repeatId = companions.first.repeatId.value!;
+              final newTasks = await (database.select(
+                database.tasks,
+              )..where((t) => t.repeatId.equals(repeatId))).get();
+              for (var t in newTasks) {
+                if (t.isReminderActive) {
+                  await NotificationService().scheduleTaskReminder(t);
+                }
+              }
+            }
           }
         },
       ),

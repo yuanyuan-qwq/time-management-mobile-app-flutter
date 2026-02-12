@@ -490,6 +490,21 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _isReminderActiveMeta = const VerificationMeta(
+    'isReminderActive',
+  );
+  @override
+  late final GeneratedColumn<bool> isReminderActive = GeneratedColumn<bool>(
+    'is_reminder_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_reminder_active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _repeatIdMeta = const VerificationMeta(
     'repeatId',
   );
@@ -550,6 +565,7 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     timeSpentSeconds,
     isRepeating,
     repeatEndDate,
+    isReminderActive,
     repeatId,
     categoryId,
     createdAt,
@@ -643,6 +659,15 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         ),
       );
     }
+    if (data.containsKey('is_reminder_active')) {
+      context.handle(
+        _isReminderActiveMeta,
+        isReminderActive.isAcceptableOrUnknown(
+          data['is_reminder_active']!,
+          _isReminderActiveMeta,
+        ),
+      );
+    }
     if (data.containsKey('repeat_id')) {
       context.handle(
         _repeatIdMeta,
@@ -719,6 +744,10 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}repeat_end_date'],
       ),
+      isReminderActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_reminder_active'],
+      )!,
       repeatId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}repeat_id'],
@@ -755,6 +784,7 @@ class Task extends DataClass implements Insertable<Task> {
   final int timeSpentSeconds;
   final bool isRepeating;
   final DateTime? repeatEndDate;
+  final bool isReminderActive;
   final String? repeatId;
   final int? categoryId;
   final DateTime createdAt;
@@ -770,6 +800,7 @@ class Task extends DataClass implements Insertable<Task> {
     required this.timeSpentSeconds,
     required this.isRepeating,
     this.repeatEndDate,
+    required this.isReminderActive,
     this.repeatId,
     this.categoryId,
     required this.createdAt,
@@ -792,6 +823,7 @@ class Task extends DataClass implements Insertable<Task> {
     if (!nullToAbsent || repeatEndDate != null) {
       map['repeat_end_date'] = Variable<DateTime>(repeatEndDate);
     }
+    map['is_reminder_active'] = Variable<bool>(isReminderActive);
     if (!nullToAbsent || repeatId != null) {
       map['repeat_id'] = Variable<String>(repeatId);
     }
@@ -821,6 +853,7 @@ class Task extends DataClass implements Insertable<Task> {
       repeatEndDate: repeatEndDate == null && nullToAbsent
           ? const Value.absent()
           : Value(repeatEndDate),
+      isReminderActive: Value(isReminderActive),
       repeatId: repeatId == null && nullToAbsent
           ? const Value.absent()
           : Value(repeatId),
@@ -850,6 +883,7 @@ class Task extends DataClass implements Insertable<Task> {
       timeSpentSeconds: serializer.fromJson<int>(json['timeSpentSeconds']),
       isRepeating: serializer.fromJson<bool>(json['isRepeating']),
       repeatEndDate: serializer.fromJson<DateTime?>(json['repeatEndDate']),
+      isReminderActive: serializer.fromJson<bool>(json['isReminderActive']),
       repeatId: serializer.fromJson<String?>(json['repeatId']),
       categoryId: serializer.fromJson<int?>(json['categoryId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -870,6 +904,7 @@ class Task extends DataClass implements Insertable<Task> {
       'timeSpentSeconds': serializer.toJson<int>(timeSpentSeconds),
       'isRepeating': serializer.toJson<bool>(isRepeating),
       'repeatEndDate': serializer.toJson<DateTime?>(repeatEndDate),
+      'isReminderActive': serializer.toJson<bool>(isReminderActive),
       'repeatId': serializer.toJson<String?>(repeatId),
       'categoryId': serializer.toJson<int?>(categoryId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -888,6 +923,7 @@ class Task extends DataClass implements Insertable<Task> {
     int? timeSpentSeconds,
     bool? isRepeating,
     Value<DateTime?> repeatEndDate = const Value.absent(),
+    bool? isReminderActive,
     Value<String?> repeatId = const Value.absent(),
     Value<int?> categoryId = const Value.absent(),
     DateTime? createdAt,
@@ -905,6 +941,7 @@ class Task extends DataClass implements Insertable<Task> {
     repeatEndDate: repeatEndDate.present
         ? repeatEndDate.value
         : this.repeatEndDate,
+    isReminderActive: isReminderActive ?? this.isReminderActive,
     repeatId: repeatId.present ? repeatId.value : this.repeatId,
     categoryId: categoryId.present ? categoryId.value : this.categoryId,
     createdAt: createdAt ?? this.createdAt,
@@ -932,6 +969,9 @@ class Task extends DataClass implements Insertable<Task> {
       repeatEndDate: data.repeatEndDate.present
           ? data.repeatEndDate.value
           : this.repeatEndDate,
+      isReminderActive: data.isReminderActive.present
+          ? data.isReminderActive.value
+          : this.isReminderActive,
       repeatId: data.repeatId.present ? data.repeatId.value : this.repeatId,
       categoryId: data.categoryId.present
           ? data.categoryId.value
@@ -956,6 +996,7 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('timeSpentSeconds: $timeSpentSeconds, ')
           ..write('isRepeating: $isRepeating, ')
           ..write('repeatEndDate: $repeatEndDate, ')
+          ..write('isReminderActive: $isReminderActive, ')
           ..write('repeatId: $repeatId, ')
           ..write('categoryId: $categoryId, ')
           ..write('createdAt: $createdAt, ')
@@ -976,6 +1017,7 @@ class Task extends DataClass implements Insertable<Task> {
     timeSpentSeconds,
     isRepeating,
     repeatEndDate,
+    isReminderActive,
     repeatId,
     categoryId,
     createdAt,
@@ -995,6 +1037,7 @@ class Task extends DataClass implements Insertable<Task> {
           other.timeSpentSeconds == this.timeSpentSeconds &&
           other.isRepeating == this.isRepeating &&
           other.repeatEndDate == this.repeatEndDate &&
+          other.isReminderActive == this.isReminderActive &&
           other.repeatId == this.repeatId &&
           other.categoryId == this.categoryId &&
           other.createdAt == this.createdAt &&
@@ -1012,6 +1055,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<int> timeSpentSeconds;
   final Value<bool> isRepeating;
   final Value<DateTime?> repeatEndDate;
+  final Value<bool> isReminderActive;
   final Value<String?> repeatId;
   final Value<int?> categoryId;
   final Value<DateTime> createdAt;
@@ -1027,6 +1071,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.timeSpentSeconds = const Value.absent(),
     this.isRepeating = const Value.absent(),
     this.repeatEndDate = const Value.absent(),
+    this.isReminderActive = const Value.absent(),
     this.repeatId = const Value.absent(),
     this.categoryId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1043,6 +1088,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.timeSpentSeconds = const Value.absent(),
     this.isRepeating = const Value.absent(),
     this.repeatEndDate = const Value.absent(),
+    this.isReminderActive = const Value.absent(),
     this.repeatId = const Value.absent(),
     this.categoryId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1060,6 +1106,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<int>? timeSpentSeconds,
     Expression<bool>? isRepeating,
     Expression<DateTime>? repeatEndDate,
+    Expression<bool>? isReminderActive,
     Expression<String>? repeatId,
     Expression<int>? categoryId,
     Expression<DateTime>? createdAt,
@@ -1076,6 +1123,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (timeSpentSeconds != null) 'time_spent_seconds': timeSpentSeconds,
       if (isRepeating != null) 'is_repeating': isRepeating,
       if (repeatEndDate != null) 'repeat_end_date': repeatEndDate,
+      if (isReminderActive != null) 'is_reminder_active': isReminderActive,
       if (repeatId != null) 'repeat_id': repeatId,
       if (categoryId != null) 'category_id': categoryId,
       if (createdAt != null) 'created_at': createdAt,
@@ -1094,6 +1142,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Value<int>? timeSpentSeconds,
     Value<bool>? isRepeating,
     Value<DateTime?>? repeatEndDate,
+    Value<bool>? isReminderActive,
     Value<String?>? repeatId,
     Value<int?>? categoryId,
     Value<DateTime>? createdAt,
@@ -1110,6 +1159,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       timeSpentSeconds: timeSpentSeconds ?? this.timeSpentSeconds,
       isRepeating: isRepeating ?? this.isRepeating,
       repeatEndDate: repeatEndDate ?? this.repeatEndDate,
+      isReminderActive: isReminderActive ?? this.isReminderActive,
       repeatId: repeatId ?? this.repeatId,
       categoryId: categoryId ?? this.categoryId,
       createdAt: createdAt ?? this.createdAt,
@@ -1150,6 +1200,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     if (repeatEndDate.present) {
       map['repeat_end_date'] = Variable<DateTime>(repeatEndDate.value);
     }
+    if (isReminderActive.present) {
+      map['is_reminder_active'] = Variable<bool>(isReminderActive.value);
+    }
     if (repeatId.present) {
       map['repeat_id'] = Variable<String>(repeatId.value);
     }
@@ -1178,6 +1231,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('timeSpentSeconds: $timeSpentSeconds, ')
           ..write('isRepeating: $isRepeating, ')
           ..write('repeatEndDate: $repeatEndDate, ')
+          ..write('isReminderActive: $isReminderActive, ')
           ..write('repeatId: $repeatId, ')
           ..write('categoryId: $categoryId, ')
           ..write('createdAt: $createdAt, ')
@@ -1568,6 +1622,18 @@ class $AppSettingsTable extends AppSettings
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _themeModeMeta = const VerificationMeta(
+    'themeMode',
+  );
+  @override
+  late final GeneratedColumn<int> themeMode = GeneratedColumn<int>(
+    'theme_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1575,6 +1641,7 @@ class $AppSettingsTable extends AppSettings
     shortBreakMinutes,
     longBreakMinutes,
     hasSeenIntro,
+    themeMode,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1627,6 +1694,12 @@ class $AppSettingsTable extends AppSettings
         ),
       );
     }
+    if (data.containsKey('theme_mode')) {
+      context.handle(
+        _themeModeMeta,
+        themeMode.isAcceptableOrUnknown(data['theme_mode']!, _themeModeMeta),
+      );
+    }
     return context;
   }
 
@@ -1656,6 +1729,10 @@ class $AppSettingsTable extends AppSettings
         DriftSqlType.bool,
         data['${effectivePrefix}has_seen_intro'],
       )!,
+      themeMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}theme_mode'],
+      )!,
     );
   }
 
@@ -1671,12 +1748,14 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
   final int shortBreakMinutes;
   final int longBreakMinutes;
   final bool hasSeenIntro;
+  final int themeMode;
   const AppSetting({
     required this.id,
     required this.pomodoroMinutes,
     required this.shortBreakMinutes,
     required this.longBreakMinutes,
     required this.hasSeenIntro,
+    required this.themeMode,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1686,6 +1765,7 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
     map['short_break_minutes'] = Variable<int>(shortBreakMinutes);
     map['long_break_minutes'] = Variable<int>(longBreakMinutes);
     map['has_seen_intro'] = Variable<bool>(hasSeenIntro);
+    map['theme_mode'] = Variable<int>(themeMode);
     return map;
   }
 
@@ -1696,6 +1776,7 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
       shortBreakMinutes: Value(shortBreakMinutes),
       longBreakMinutes: Value(longBreakMinutes),
       hasSeenIntro: Value(hasSeenIntro),
+      themeMode: Value(themeMode),
     );
   }
 
@@ -1710,6 +1791,7 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
       shortBreakMinutes: serializer.fromJson<int>(json['shortBreakMinutes']),
       longBreakMinutes: serializer.fromJson<int>(json['longBreakMinutes']),
       hasSeenIntro: serializer.fromJson<bool>(json['hasSeenIntro']),
+      themeMode: serializer.fromJson<int>(json['themeMode']),
     );
   }
   @override
@@ -1721,6 +1803,7 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
       'shortBreakMinutes': serializer.toJson<int>(shortBreakMinutes),
       'longBreakMinutes': serializer.toJson<int>(longBreakMinutes),
       'hasSeenIntro': serializer.toJson<bool>(hasSeenIntro),
+      'themeMode': serializer.toJson<int>(themeMode),
     };
   }
 
@@ -1730,12 +1813,14 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
     int? shortBreakMinutes,
     int? longBreakMinutes,
     bool? hasSeenIntro,
+    int? themeMode,
   }) => AppSetting(
     id: id ?? this.id,
     pomodoroMinutes: pomodoroMinutes ?? this.pomodoroMinutes,
     shortBreakMinutes: shortBreakMinutes ?? this.shortBreakMinutes,
     longBreakMinutes: longBreakMinutes ?? this.longBreakMinutes,
     hasSeenIntro: hasSeenIntro ?? this.hasSeenIntro,
+    themeMode: themeMode ?? this.themeMode,
   );
   AppSetting copyWithCompanion(AppSettingsCompanion data) {
     return AppSetting(
@@ -1752,6 +1837,7 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
       hasSeenIntro: data.hasSeenIntro.present
           ? data.hasSeenIntro.value
           : this.hasSeenIntro,
+      themeMode: data.themeMode.present ? data.themeMode.value : this.themeMode,
     );
   }
 
@@ -1762,7 +1848,8 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
           ..write('pomodoroMinutes: $pomodoroMinutes, ')
           ..write('shortBreakMinutes: $shortBreakMinutes, ')
           ..write('longBreakMinutes: $longBreakMinutes, ')
-          ..write('hasSeenIntro: $hasSeenIntro')
+          ..write('hasSeenIntro: $hasSeenIntro, ')
+          ..write('themeMode: $themeMode')
           ..write(')'))
         .toString();
   }
@@ -1774,6 +1861,7 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
     shortBreakMinutes,
     longBreakMinutes,
     hasSeenIntro,
+    themeMode,
   );
   @override
   bool operator ==(Object other) =>
@@ -1783,7 +1871,8 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
           other.pomodoroMinutes == this.pomodoroMinutes &&
           other.shortBreakMinutes == this.shortBreakMinutes &&
           other.longBreakMinutes == this.longBreakMinutes &&
-          other.hasSeenIntro == this.hasSeenIntro);
+          other.hasSeenIntro == this.hasSeenIntro &&
+          other.themeMode == this.themeMode);
 }
 
 class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
@@ -1792,12 +1881,14 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
   final Value<int> shortBreakMinutes;
   final Value<int> longBreakMinutes;
   final Value<bool> hasSeenIntro;
+  final Value<int> themeMode;
   const AppSettingsCompanion({
     this.id = const Value.absent(),
     this.pomodoroMinutes = const Value.absent(),
     this.shortBreakMinutes = const Value.absent(),
     this.longBreakMinutes = const Value.absent(),
     this.hasSeenIntro = const Value.absent(),
+    this.themeMode = const Value.absent(),
   });
   AppSettingsCompanion.insert({
     this.id = const Value.absent(),
@@ -1805,6 +1896,7 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
     this.shortBreakMinutes = const Value.absent(),
     this.longBreakMinutes = const Value.absent(),
     this.hasSeenIntro = const Value.absent(),
+    this.themeMode = const Value.absent(),
   });
   static Insertable<AppSetting> custom({
     Expression<int>? id,
@@ -1812,6 +1904,7 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
     Expression<int>? shortBreakMinutes,
     Expression<int>? longBreakMinutes,
     Expression<bool>? hasSeenIntro,
+    Expression<int>? themeMode,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1819,6 +1912,7 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
       if (shortBreakMinutes != null) 'short_break_minutes': shortBreakMinutes,
       if (longBreakMinutes != null) 'long_break_minutes': longBreakMinutes,
       if (hasSeenIntro != null) 'has_seen_intro': hasSeenIntro,
+      if (themeMode != null) 'theme_mode': themeMode,
     });
   }
 
@@ -1828,6 +1922,7 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
     Value<int>? shortBreakMinutes,
     Value<int>? longBreakMinutes,
     Value<bool>? hasSeenIntro,
+    Value<int>? themeMode,
   }) {
     return AppSettingsCompanion(
       id: id ?? this.id,
@@ -1835,6 +1930,7 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
       shortBreakMinutes: shortBreakMinutes ?? this.shortBreakMinutes,
       longBreakMinutes: longBreakMinutes ?? this.longBreakMinutes,
       hasSeenIntro: hasSeenIntro ?? this.hasSeenIntro,
+      themeMode: themeMode ?? this.themeMode,
     );
   }
 
@@ -1856,6 +1952,9 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
     if (hasSeenIntro.present) {
       map['has_seen_intro'] = Variable<bool>(hasSeenIntro.value);
     }
+    if (themeMode.present) {
+      map['theme_mode'] = Variable<int>(themeMode.value);
+    }
     return map;
   }
 
@@ -1866,7 +1965,8 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
           ..write('pomodoroMinutes: $pomodoroMinutes, ')
           ..write('shortBreakMinutes: $shortBreakMinutes, ')
           ..write('longBreakMinutes: $longBreakMinutes, ')
-          ..write('hasSeenIntro: $hasSeenIntro')
+          ..write('hasSeenIntro: $hasSeenIntro, ')
+          ..write('themeMode: $themeMode')
           ..write(')'))
         .toString();
   }
@@ -2195,6 +2295,7 @@ typedef $$TasksTableCreateCompanionBuilder =
       Value<int> timeSpentSeconds,
       Value<bool> isRepeating,
       Value<DateTime?> repeatEndDate,
+      Value<bool> isReminderActive,
       Value<String?> repeatId,
       Value<int?> categoryId,
       Value<DateTime> createdAt,
@@ -2212,6 +2313,7 @@ typedef $$TasksTableUpdateCompanionBuilder =
       Value<int> timeSpentSeconds,
       Value<bool> isRepeating,
       Value<DateTime?> repeatEndDate,
+      Value<bool> isReminderActive,
       Value<String?> repeatId,
       Value<int?> categoryId,
       Value<DateTime> createdAt,
@@ -2315,6 +2417,11 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<DateTime> get repeatEndDate => $composableBuilder(
     column: $table.repeatEndDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isReminderActive => $composableBuilder(
+    column: $table.isReminderActive,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2441,6 +2548,11 @@ class $$TasksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isReminderActive => $composableBuilder(
+    column: $table.isReminderActive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get repeatId => $composableBuilder(
     column: $table.repeatId,
     builder: (column) => ColumnOrderings(column),
@@ -2526,6 +2638,11 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumn<DateTime> get repeatEndDate => $composableBuilder(
     column: $table.repeatEndDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isReminderActive => $composableBuilder(
+    column: $table.isReminderActive,
     builder: (column) => column,
   );
 
@@ -2627,6 +2744,7 @@ class $$TasksTableTableManager
                 Value<int> timeSpentSeconds = const Value.absent(),
                 Value<bool> isRepeating = const Value.absent(),
                 Value<DateTime?> repeatEndDate = const Value.absent(),
+                Value<bool> isReminderActive = const Value.absent(),
                 Value<String?> repeatId = const Value.absent(),
                 Value<int?> categoryId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -2642,6 +2760,7 @@ class $$TasksTableTableManager
                 timeSpentSeconds: timeSpentSeconds,
                 isRepeating: isRepeating,
                 repeatEndDate: repeatEndDate,
+                isReminderActive: isReminderActive,
                 repeatId: repeatId,
                 categoryId: categoryId,
                 createdAt: createdAt,
@@ -2659,6 +2778,7 @@ class $$TasksTableTableManager
                 Value<int> timeSpentSeconds = const Value.absent(),
                 Value<bool> isRepeating = const Value.absent(),
                 Value<DateTime?> repeatEndDate = const Value.absent(),
+                Value<bool> isReminderActive = const Value.absent(),
                 Value<String?> repeatId = const Value.absent(),
                 Value<int?> categoryId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -2674,6 +2794,7 @@ class $$TasksTableTableManager
                 timeSpentSeconds: timeSpentSeconds,
                 isRepeating: isRepeating,
                 repeatEndDate: repeatEndDate,
+                isReminderActive: isReminderActive,
                 repeatId: repeatId,
                 categoryId: categoryId,
                 createdAt: createdAt,
@@ -3082,6 +3203,7 @@ typedef $$AppSettingsTableCreateCompanionBuilder =
       Value<int> shortBreakMinutes,
       Value<int> longBreakMinutes,
       Value<bool> hasSeenIntro,
+      Value<int> themeMode,
     });
 typedef $$AppSettingsTableUpdateCompanionBuilder =
     AppSettingsCompanion Function({
@@ -3090,6 +3212,7 @@ typedef $$AppSettingsTableUpdateCompanionBuilder =
       Value<int> shortBreakMinutes,
       Value<int> longBreakMinutes,
       Value<bool> hasSeenIntro,
+      Value<int> themeMode,
     });
 
 class $$AppSettingsTableFilterComposer
@@ -3123,6 +3246,11 @@ class $$AppSettingsTableFilterComposer
 
   ColumnFilters<bool> get hasSeenIntro => $composableBuilder(
     column: $table.hasSeenIntro,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get themeMode => $composableBuilder(
+    column: $table.themeMode,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3160,6 +3288,11 @@ class $$AppSettingsTableOrderingComposer
     column: $table.hasSeenIntro,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get themeMode => $composableBuilder(
+    column: $table.themeMode,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AppSettingsTableAnnotationComposer
@@ -3193,6 +3326,9 @@ class $$AppSettingsTableAnnotationComposer
     column: $table.hasSeenIntro,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get themeMode =>
+      $composableBuilder(column: $table.themeMode, builder: (column) => column);
 }
 
 class $$AppSettingsTableTableManager
@@ -3231,12 +3367,14 @@ class $$AppSettingsTableTableManager
                 Value<int> shortBreakMinutes = const Value.absent(),
                 Value<int> longBreakMinutes = const Value.absent(),
                 Value<bool> hasSeenIntro = const Value.absent(),
+                Value<int> themeMode = const Value.absent(),
               }) => AppSettingsCompanion(
                 id: id,
                 pomodoroMinutes: pomodoroMinutes,
                 shortBreakMinutes: shortBreakMinutes,
                 longBreakMinutes: longBreakMinutes,
                 hasSeenIntro: hasSeenIntro,
+                themeMode: themeMode,
               ),
           createCompanionCallback:
               ({
@@ -3245,12 +3383,14 @@ class $$AppSettingsTableTableManager
                 Value<int> shortBreakMinutes = const Value.absent(),
                 Value<int> longBreakMinutes = const Value.absent(),
                 Value<bool> hasSeenIntro = const Value.absent(),
+                Value<int> themeMode = const Value.absent(),
               }) => AppSettingsCompanion.insert(
                 id: id,
                 pomodoroMinutes: pomodoroMinutes,
                 shortBreakMinutes: shortBreakMinutes,
                 longBreakMinutes: longBreakMinutes,
                 hasSeenIntro: hasSeenIntro,
+                themeMode: themeMode,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
