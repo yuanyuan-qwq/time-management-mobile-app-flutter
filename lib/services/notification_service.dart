@@ -113,12 +113,26 @@ class NotificationService {
   /// Requests notification permissions on Android 13+ and iOS.
   Future<void> requestPermissions() async {
     _log('Requesting permissions...');
-    final bool? androidGranted = await _notificationsPlugin
+
+    final androidPlugin = _notificationsPlugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestNotificationsPermission();
-    _log('Android Permission granted: $androidGranted');
+        >();
+
+    if (androidPlugin != null) {
+      final bool? notifGranted = await androidPlugin
+          .requestNotificationsPermission();
+      _log('Android notification permission: $notifGranted');
+
+      // Request exact alarm permission (Android 12+).
+      // Without this, zonedSchedule silently fails.
+      final bool? exactAlarmGranted = await androidPlugin
+          .requestExactAlarmsPermission();
+      _log(
+        'Android exact alarm permission: '
+        '$exactAlarmGranted',
+      );
+    }
 
     final bool? iosGranted = await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
@@ -272,12 +286,21 @@ class NotificationService {
 
   // ============ TASK REMINDER NOTIFICATIONS ============
 
+  /// Active in-app timers as fallback for zonedSchedule.
+  final Map<int, Timer> _activeTimers = {};
+
   /// Schedules a task reminder notification.
   ///
-  /// Uses [task.reminderMinutesBefore] to fire the
-  /// notification before the due date.
+  /// Uses two mechanisms for reliability:
+  /// 1. [zonedSchedule] for background delivery
+  /// 2. In-app [Timer] + [show] as a foreground fallback
   Future<void> scheduleTaskReminder(Task task) async {
     if (!task.isReminderActive || task.isCompleted) {
+      _log(
+        'Skipping reminder for: ${task.title} '
+        '(active=${task.isReminderActive}, '
+        'completed=${task.isCompleted})',
+      );
       return;
     }
 
@@ -285,15 +308,27 @@ class NotificationService {
       Duration(minutes: task.reminderMinutesBefore),
     );
 
+    _log(
+      'Reminder calc for: ${task.title}\n'
+      '  dueDate=${task.dueDate}\n'
+      '  offsetMin=${task.reminderMinutesBefore}\n'
+      '  reminderTime=$reminderTime\n'
+      '  now=${DateTime.now()}\n'
+      '  isFuture=${reminderTime.isAfter(DateTime.now())}',
+    );
+
     if (reminderTime.isBefore(DateTime.now())) {
       _log('Skipping past reminder for: ${task.title}');
       return;
     }
 
+    // --- 1. zonedSchedule (background fallback) ---
+    final scheduledTZ = tz.TZDateTime.from(reminderTime, tz.local);
     _log(
-      'Scheduling reminder for: ${task.title} '
-      'at $reminderTime '
-      '(${task.reminderMinutesBefore} min before due)',
+      'Scheduling zonedSchedule:\n'
+      '  id=${task.id}\n'
+      '  scheduledTZ=$scheduledTZ\n'
+      '  tzLocation=${tz.local.name}',
     );
 
     try {
@@ -301,7 +336,7 @@ class NotificationService {
         id: task.id,
         title: '⏰ Task Reminder',
         body: task.title,
-        scheduledDate: tz.TZDateTime.from(reminderTime, tz.local),
+        scheduledDate: scheduledTZ,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             'task_reminders_v2',
@@ -326,9 +361,58 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         payload: 'task:${task.id}:${task.title}',
       );
-      _log('Task reminder scheduled successfully.');
+      _log('zonedSchedule set successfully.');
+    } catch (e, s) {
+      _log('Error in zonedSchedule: $e\n$s');
+    }
+
+    // --- 2. In-app Timer fallback (fires while app is running) ---
+    _activeTimers[task.id]?.cancel();
+    final delay = reminderTime.difference(DateTime.now());
+    _log(
+      'Setting in-app timer fallback: '
+      '${delay.inSeconds}s until fire',
+    );
+    _activeTimers[task.id] = Timer(delay, () {
+      _log('In-app timer fired for: ${task.title}');
+      _showTaskReminderNow(task.id, task.title);
+      _activeTimers.remove(task.id);
+    });
+  }
+
+  /// Immediately shows a task reminder notification.
+  Future<void> _showTaskReminderNow(int taskId, String taskTitle) async {
+    _log('Showing immediate reminder for: $taskTitle');
+    try {
+      await _notificationsPlugin.show(
+        id: taskId,
+        title: '⏰ Task Reminder',
+        body: taskTitle,
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            'task_reminders_v2',
+            'Task Reminders',
+            channelDescription: 'Notifications for task reminders',
+            importance: Importance.high,
+            priority: Priority.high,
+            actions: <AndroidNotificationAction>[
+              AndroidNotificationAction(
+                snoozeActionId,
+                'Snooze 10 min',
+                showsUserInterface: false,
+              ),
+            ],
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        payload: 'task:$taskId:$taskTitle',
+      );
     } catch (e) {
-      _log('Error scheduling task reminder: $e');
+      _log('Error showing immediate reminder: $e');
     }
   }
 
