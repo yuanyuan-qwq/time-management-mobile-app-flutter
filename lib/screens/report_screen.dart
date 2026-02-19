@@ -317,6 +317,11 @@ class _ReportScreenState extends State<ReportScreen> {
                             title: 'Completed',
                             value: '$completedCount',
                             width: (MediaQuery.of(context).size.width - 52) / 2,
+                            onTap: () => _showTaskListDialog(
+                              context,
+                              'Completed Tasks',
+                              rangeTasks.where((t) => t.isCompleted).toList(),
+                            ),
                           ),
                           _StatCard(
                             icon: Icons.pending_actions,
@@ -324,6 +329,11 @@ class _ReportScreenState extends State<ReportScreen> {
                             title: 'Incomplete',
                             value: '$incompleteCount',
                             width: (MediaQuery.of(context).size.width - 52) / 2,
+                            onTap: () => _showTaskListDialog(
+                              context,
+                              'Incomplete Tasks',
+                              rangeTasks.where((t) => !t.isCompleted).toList(),
+                            ),
                           ),
                         ],
                       ),
@@ -463,6 +473,65 @@ class _ReportScreenState extends State<ReportScreen> {
       weeklyData[i + 1] = dayTasks;
     }
     return weeklyData;
+  }
+
+  void _showTaskListDialog(
+    BuildContext context,
+    String title,
+    List<Task> tasks,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: tasks.isEmpty
+              ? const SizedBox(
+                  height: 100,
+                  child: Center(child: Text('No tasks found')),
+                )
+              : SizedBox(
+                  width: double.maxFinite,
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: tasks.length,
+                    separatorBuilder: (context, index) => const Divider(),
+                    itemBuilder: (context, index) {
+                      final task = tasks[index];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: Color(task.color),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        title: Text(
+                          task.title,
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        subtitle: Text(
+                          '${task.dueDate.day}/${task.dueDate.month}/${task.dueDate.year}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildPieChart(int completed, int incomplete, int total) {
@@ -622,6 +691,7 @@ class _StatCard extends StatelessWidget {
   final String title;
   final String value;
   final double? width;
+  final VoidCallback? onTap;
 
   const _StatCard({
     required this.icon,
@@ -629,46 +699,51 @@ class _StatCard extends StatelessWidget {
     required this.title,
     required this.value,
     this.width,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: width,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-          ),
-        ],
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
       ),
     );
   }
