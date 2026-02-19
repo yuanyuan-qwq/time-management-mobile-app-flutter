@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import 'dart:async';
 import '../data/database.dart';
 import '../models/priority.dart';
+import '../screens/today_tasks_screen.dart' show database;
 
 enum RepeatType { daily, weekly, monthly }
 
@@ -36,6 +37,8 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   DateTime? _repeatEndDate;
   bool _isReminderActive = false;
   int _reminderMinutesBefore = 0;
+  bool _isFuture = false;
+  int? _selectedCategoryId;
 
   // New Repetition State
   RepeatType _repeatType = RepeatType.daily;
@@ -70,6 +73,8 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     _repeatEndDate = task?.repeatEndDate;
     _isReminderActive = task?.isReminderActive ?? false;
     _reminderMinutesBefore = task?.reminderMinutesBefore ?? 0;
+    _isFuture = task?.isFuture ?? false;
+    _selectedCategoryId = task?.categoryId;
     // Default repetition values
     if (_dueDate.weekday != 0) _selectedWeekDays.add(_dueDate.weekday);
     if (_dueDate.day != 0) _selectedMonthDays.add(_dueDate.day);
@@ -244,6 +249,8 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       repeatId: drift.Value(repeatId),
       isReminderActive: drift.Value(_isReminderActive),
       reminderMinutesBefore: drift.Value(_reminderMinutesBefore),
+      isFuture: drift.Value(_isFuture),
+      categoryId: drift.Value(_selectedCategoryId),
     );
   }
 
@@ -389,6 +396,109 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
               ),
               const SizedBox(height: 24),
 
+              // Task Type
+              const Text(
+                'Task Type',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: false,
+                    label: Text('Adhoc (Today)'),
+                    icon: Icon(Icons.today),
+                  ),
+                  ButtonSegment(
+                    value: true,
+                    label: Text('Future (Long-term)'),
+                    icon: Icon(Icons.auto_awesome),
+                  ),
+                ],
+                selected: {_isFuture},
+                onSelectionChanged: widget.existingTask != null
+                    ? null
+                    : (set) {
+                        setState(() {
+                          _isFuture = set.first;
+                          if (_isFuture) {
+                            _isRepeating = false;
+                          }
+                        });
+                      },
+              ),
+              if (widget.existingTask != null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Task type cannot be changed when editing',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+              const SizedBox(height: 24),
+
+              // Folder (Category)
+              const Text(
+                'Folder (Category)',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              StreamBuilder<List<Category>>(
+                stream: database.watchAllCategories(),
+                builder: (context, snapshot) {
+                  final categories = snapshot.data ?? [];
+                  return DropdownButtonFormField<int?>(
+                    initialValue: _selectedCategoryId,
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.folder_outlined),
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.settings_outlined),
+                            tooltip: 'Manage Folders',
+                            onPressed: _showManageCategoriesDialog,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline),
+                            tooltip: 'Add Folder',
+                            onPressed: _showAddCategoryDialog,
+                          ),
+                        ],
+                      ),
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('No Folder'),
+                      ),
+                      ...categories.map(
+                        (c) => DropdownMenuItem(
+                          value: c.id,
+                          child: Row(
+                            children: [
+                              Icon(
+                                IconData(
+                                  c.iconCodePoint ?? Icons.folder.codePoint,
+                                  fontFamily: 'MaterialIcons',
+                                ),
+                                color: Color(c.color),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(c.name),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: (val) =>
+                        setState(() => _selectedCategoryId = val),
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+
               // Due Date
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -469,10 +579,12 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 subtitle: Text(
                   widget.existingTask?.repeatId != null
                       ? 'Recurring settings cannot be changed during edit'
+                      : _isFuture
+                      ? 'Future tasks cannot be recurring'
                       : 'Create recurring tasks',
                 ),
                 value: _isRepeating,
-                onChanged: widget.existingTask?.repeatId != null
+                onChanged: (widget.existingTask?.repeatId != null || _isFuture)
                     ? null
                     : (value) {
                         setState(() => _isRepeating = value);
@@ -649,6 +761,237 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showManageCategoriesDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StreamBuilder<List<Category>>(
+          stream: database.watchAllCategories(),
+          builder: (context, snapshot) {
+            final categories = snapshot.data ?? [];
+            return AlertDialog(
+              title: const Text('Manage Folders'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: categories.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Text(
+                          'No folders created yet.',
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: categories.length,
+                        itemBuilder: (context, index) {
+                          final category = categories[index];
+                          return ListTile(
+                            leading: Icon(
+                              IconData(
+                                category.iconCodePoint ??
+                                    Icons.folder.codePoint,
+                                fontFamily: 'MaterialIcons',
+                              ),
+                              color: Color(category.color),
+                            ),
+                            title: Text(category.name),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined),
+                                  onPressed: () => _showAddCategoryDialog(
+                                    category: category,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () =>
+                                      _confirmDeleteCategory(category),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteCategory(Category category) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Folder?'),
+        content: Text(
+          'Are you sure you want to delete "${category.name}"? Tasks in this folder will be moved to "No Folder".',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              // 1. Clear category from tasks
+              await (database.update(database.tasks)
+                    ..where((t) => t.categoryId.equals(category.id)))
+                  .write(const TasksCompanion(categoryId: drift.Value(null)));
+
+              // 2. Delete the category
+              await database.deleteCategory(category);
+
+              if (_selectedCategoryId == category.id) {
+                setState(() => _selectedCategoryId = null);
+              }
+
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddCategoryDialog({Category? category}) {
+    final nameController = TextEditingController(text: category?.name);
+    Color selectedColor = category != null
+        ? Color(category.color)
+        : _colorOptions[0];
+    int selectedIcon = category?.iconCodePoint ?? Icons.folder.codePoint;
+
+    final icons = [
+      Icons.folder,
+      Icons.star,
+      Icons.work,
+      Icons.home,
+      Icons.shopping_cart,
+      Icons.fitness_center,
+      Icons.book,
+      Icons.code,
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('New Folder'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Folder Name',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('Color'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: _colorOptions.map((color) {
+                        return GestureDetector(
+                          onTap: () =>
+                              setDialogState(() => selectedColor = color),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: selectedColor == color
+                                  ? Border.all(color: Colors.white, width: 2)
+                                  : null,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('Icon'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: icons.map((icon) {
+                        return GestureDetector(
+                          onTap: () => setDialogState(
+                            () => selectedIcon = icon.codePoint,
+                          ),
+                          child: Icon(
+                            icon,
+                            color: selectedIcon == icon.codePoint
+                                ? Theme.of(context).primaryColor
+                                : Colors.grey,
+                            size: 32,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (nameController.text.isNotEmpty) {
+                      if (category != null) {
+                        await database.updateCategory(
+                          category.copyWith(
+                            name: nameController.text.trim(),
+                            color: selectedColor.toARGB32(),
+                            iconCodePoint: drift.Value(selectedIcon),
+                          ),
+                        );
+                      } else {
+                        final id = await database.insertCategory(
+                          CategoriesCompanion(
+                            name: drift.Value(nameController.text.trim()),
+                            color: drift.Value(selectedColor.toARGB32()),
+                            iconCodePoint: drift.Value(selectedIcon),
+                          ),
+                        );
+                        setState(() {
+                          _selectedCategoryId = id;
+                        });
+                      }
+                      if (context.mounted) Navigator.pop(context);
+                    }
+                  },
+                  child: Text(category != null ? 'Save' : 'Create'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

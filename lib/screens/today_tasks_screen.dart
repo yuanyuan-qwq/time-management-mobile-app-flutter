@@ -214,9 +214,26 @@ class _TodayTasksScreenState extends State<TodayTasksScreen> {
                   }
 
                   final tasks = snapshot.data!;
-                  final todoTasks = tasks.where((t) => !t.isCompleted).toList();
-                  final completedTasks = tasks
-                      .where((t) => t.isCompleted)
+                  final today = DateTime(now.year, now.month, now.day);
+                  final tomorrow = today.add(const Duration(days: 1));
+
+                  final adhocTasks = tasks
+                      .where((t) => !t.isFuture && t.dueDate.isBefore(tomorrow))
+                      .toList();
+                  final futureTasks = tasks.where((t) => t.isFuture).toList();
+
+                  final todoAdhoc = adhocTasks
+                      .where((t) => !t.isCompleted)
+                      .toList();
+                  final completedToday = tasks
+                      .where(
+                        (t) =>
+                            t.isCompleted &&
+                            (t.completedAt ?? t.dueDate).isAfter(
+                              today.subtract(const Duration(seconds: 1)),
+                            ) &&
+                            (t.completedAt ?? t.dueDate).isBefore(tomorrow),
+                      )
                       .toList();
 
                   if (tasks.isEmpty) {
@@ -251,34 +268,35 @@ class _TodayTasksScreenState extends State<TodayTasksScreen> {
                   return ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     children: [
-                      // To Do section
-                      if (todoTasks.isNotEmpty) ...[
+                      // Adhoc To Do section
+                      if (todoAdhoc.isNotEmpty) ...[
                         _buildSectionHeader(
-                          'To Do',
-                          todoTasks.length,
+                          'Adhoc (To Do)',
+                          todoAdhoc.length,
                           Theme.of(context).colorScheme.primary,
                         ),
                         const SizedBox(height: 8),
-                        ...todoTasks.map(
+                        ...todoAdhoc.map(
                           (task) => TaskCard(
                             task: task,
                             onToggleComplete: () => _toggleComplete(task),
                             onDelete: () => _deleteTask(task),
                             onTap: () => _showEditTaskDialog(task),
+                            showTimeSpent: false,
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
                       ],
 
-                      // Completed section
-                      if (completedTasks.isNotEmpty) ...[
+                      // Completed section (includes both adhoc and future completed today)
+                      if (completedToday.isNotEmpty) ...[
                         _buildSectionHeader(
-                          'Completed',
-                          completedTasks.length,
+                          'Completed Today',
+                          completedToday.length,
                           AppTheme.successColor,
                         ),
                         const SizedBox(height: 8),
-                        ...completedTasks.map(
+                        ...completedToday.map(
                           (task) => TaskCard(
                             task: task,
                             onToggleComplete: () => _toggleComplete(task),
@@ -288,6 +306,42 @@ class _TodayTasksScreenState extends State<TodayTasksScreen> {
                             timeSpentFormatted: _formatDuration(
                               task.timeSpentSeconds,
                             ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+
+                      // Future Tasks Folder
+                      if (futureTasks.isNotEmpty) ...[
+                        Theme(
+                          data: Theme.of(
+                            context,
+                          ).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            leading: const Icon(Icons.folder_open),
+                            title: const Text(
+                              'Future Tasks',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Text('${futureTasks.length} tasks'),
+                            childrenPadding: const EdgeInsets.only(bottom: 16),
+                            children: [
+                              StreamBuilder<List<Category>>(
+                                stream: database.watchAllCategories(),
+                                builder: (context, catSnapshot) {
+                                  final cats = catSnapshot.data ?? [];
+                                  return Column(
+                                    children: _groupTasksByCategory(
+                                      futureTasks,
+                                      cats,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -342,6 +396,65 @@ class _TodayTasksScreenState extends State<TodayTasksScreen> {
         ),
       ],
     );
+  }
+
+  List<Widget> _groupTasksByCategory(List<Task> tasks, List<Category> cats) {
+    final Map<int?, List<Task>> grouped = {};
+    for (var task in tasks) {
+      grouped.putIfAbsent(task.categoryId, () => []).add(task);
+    }
+
+    final List<Widget> widgets = [];
+
+    for (var entry in grouped.entries) {
+      final categoryId = entry.key;
+      final categoryTasks = entry.value;
+      final category = cats.any((c) => c.id == categoryId)
+          ? cats.firstWhere((c) => c.id == categoryId)
+          : null;
+
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(left: 16, top: 12, bottom: 4),
+          child: Row(
+            children: [
+              Icon(
+                IconData(
+                  category?.iconCodePoint ?? Icons.folder.codePoint,
+                  fontFamily: 'MaterialIcons',
+                ),
+                color: Color(category?.color ?? Colors.grey.toARGB32()),
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                category?.name ?? 'No Folder',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      widgets.addAll(
+        categoryTasks.map(
+          (task) => TaskCard(
+            task: task,
+            onToggleComplete: () => _toggleComplete(task),
+            onDelete: () => _deleteTask(task),
+            onTap: () => _showEditTaskDialog(task),
+            showTimeSpent: task.isCompleted,
+            timeSpentFormatted: task.isCompleted
+                ? _formatDuration(task.timeSpentSeconds)
+                : null,
+          ),
+        ),
+      );
+    }
+    return widgets;
   }
 
   void _showEditTaskDialog(Task task) {

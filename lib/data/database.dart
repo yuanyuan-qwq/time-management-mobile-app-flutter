@@ -33,6 +33,7 @@ class Tasks extends Table {
       boolean().withDefault(const Constant(false))();
   IntColumn get reminderMinutesBefore =>
       integer().withDefault(const Constant(0))();
+  BoolColumn get isFuture => boolean().withDefault(const Constant(false))();
   TextColumn get repeatId => text().nullable()();
   IntColumn get categoryId =>
       integer().nullable().references(Categories, #id)();
@@ -69,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration {
@@ -94,6 +95,10 @@ class AppDatabase extends _$AppDatabase {
           // We added reminderMinutesBefore in v6
           await m.addColumn(tasks, tasks.reminderMinutesBefore);
         }
+        if (from < 7) {
+          // We added isFuture in v7
+          await m.addColumn(tasks, tasks.isFuture);
+        }
       },
     );
   }
@@ -115,9 +120,34 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<Task>> watchTasksForDate(DateTime date) {
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
+    final isToday = startOfDay.isAtSameMomentAs(
+      DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
+    );
+
     return (select(tasks)
-          ..where((t) => t.dueDate.isBiggerOrEqualValue(startOfDay))
-          ..where((t) => t.dueDate.isSmallerThanValue(endOfDay))
+          ..where((t) {
+            // Adhoc tasks for this date
+            final isAdhocForDate =
+                t.dueDate.isBiggerOrEqualValue(startOfDay) &
+                t.dueDate.isSmallerThanValue(endOfDay) &
+                t.isFuture.equals(false);
+
+            // Completed future tasks for this date
+            final isCompletedFutureForDate =
+                t.isFuture.equals(true) &
+                t.isCompleted.equals(true) &
+                t.completedAt.isBiggerOrEqualValue(startOfDay) &
+                t.completedAt.isSmallerThanValue(endOfDay);
+
+            if (isToday) {
+              // Persistent future tasks that are not yet completed
+              final isActiveFuture =
+                  t.isFuture.equals(true) & t.isCompleted.equals(false);
+              return isAdhocForDate | isCompletedFutureForDate | isActiveFuture;
+            } else {
+              return isAdhocForDate | isCompletedFutureForDate;
+            }
+          })
           ..orderBy([(t) => OrderingTerm.asc(t.priority)]))
         .watch();
   }
